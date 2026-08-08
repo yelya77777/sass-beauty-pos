@@ -1,0 +1,9 @@
+{
+  "name": "SASS BEAUTY POS",
+  "short_name": "SASS BEAUTY",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f6f3ee",
+  "theme_color": "#171615",
+  "icons": []
+}
