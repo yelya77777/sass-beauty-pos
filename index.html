@@ -76,8 +76,84 @@ function exportCSV(){let rows=[['Чек','Время','Товары','Сумма
 q('exportBtn').onclick=exportCSV;q('search').oninput=renderGrid;q('stockSearch').oninput=renderStock;q('productSearch').oninput=renderProducts;q('salesSearch').oninput=renderSales;q('newSaleBtn').onclick=()=>{cart=[];discount={type:'percent',value:0};q('disc').value='';renderCart()};q('savePin').onclick=()=>{let p=q('ownerPin').value;if(p.length<4)return alert('PIN минимум 4 цифры');db.pin=p;save();alert('PIN сохранён')};
 document.querySelectorAll('.pay button').forEach(b=>b.onclick=()=>checkout(b.dataset.pay));
 document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('on'));b.classList.add('on');document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));q(b.dataset.view).classList.add('on');renderAll()});
-q('scanBtn').onclick=()=>scanBarcode();
+q('scanBtn').onclick=()=>scanBarcode()
 async function scanBarcode(){
+  if(!window.Html5Qrcode){
+    await new Promise((resolve,reject)=>{
+      const s=document.createElement('script');
+      s.src='https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+      s.onload=resolve;
+      s.onerror=reject;
+      document.head.appendChild(s);
+    });
+  }
+
+  const box=document.createElement('div');
+  box.style='position:fixed;inset:0;background:#000;z-index:99999;padding:20px;display:flex;flex-direction:column;align-items:center;justify-content:center';
+
+  box.innerHTML=`
+    <div id="reader" style="width:100%;max-width:500px"></div>
+    <div style="color:white;font-size:18px;margin:20px;text-align:center">
+      Наведи камеру на штрихкод
+    </div>
+    <button id="closeScanner"
+      style="padding:14px 30px;border:0;border-radius:12px;font-size:18px">
+      Закрыть
+    </button>
+  `;
+
+  document.body.appendChild(box);
+
+  const scanner=new Html5Qrcode("reader");
+
+  const formats=[
+    Html5QrcodeSupportedFormats.EAN_13,
+    Html5QrcodeSupportedFormats.EAN_8,
+    Html5QrcodeSupportedFormats.UPC_A,
+    Html5QrcodeSupportedFormats.UPC_E,
+    Html5QrcodeSupportedFormats.CODE_128,
+    Html5QrcodeSupportedFormats.CODE_39,
+    Html5QrcodeSupportedFormats.QR_CODE
+  ];
+
+  let stopped=false;
+
+  const close=async()=>{
+    if(stopped)return;
+    stopped=true;
+    try{await scanner.stop();}catch(e){}
+    try{scanner.clear();}catch(e){}
+    box.remove();
+  };
+
+  box.querySelector('#closeScanner').onclick=close;
+
+  try{
+    await scanner.start(
+      {facingMode:"environment"},
+      {
+        fps:15,
+        qrbox:{width:320,height:180},
+        formatsToSupport:formats,
+        aspectRatio:1.777
+      },
+      async(decodedText)=>{
+        if(stopped)return;
+
+        q('search').value=decodedText;
+
+        await close();
+
+        renderGrid();
+      },
+      ()=>{}
+    );
+  }catch(e){
+    console.error(e);
+    await close();
+    alert('Не удалось запустить сканер. Проверь разрешение камеры.');
+  }
+}
   const {BrowserMultiFormatReader}=await import('https://cdn.jsdelivr.net/npm/@zxing/browser@0.2.1/+esm');
 
   const box=document.createElement('div');
