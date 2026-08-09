@@ -77,7 +77,69 @@ q('exportBtn').onclick=exportCSV;q('search').oninput=renderGrid;q('stockSearch')
 document.querySelectorAll('.pay button').forEach(b=>b.onclick=()=>checkout(b.dataset.pay));
 document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('on'));b.classList.add('on');document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));q(b.dataset.view).classList.add('on');renderAll()});
 q('scanBtn').onclick=()=>scanBarcode();
-async function scanBarcode(){const{BrowserMultiFormatReader}=await import('https://cdn.jsdelivr.net/npm/@zxing/browser@0.2.1/+esm');const box=document.createElement('div');box.style='position:fixed;inset:0;background:#000;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center';box.innerHTML='<video id="barcodeVideo" autoplay playsinline style="width:100%;max-width:600px"></video><button id="closeScanner" style="margin-top:20px;padding:14px 28px;border:0;border-radius:12px;font-size:18px">Закрыть</button>';document.body.appendChild(box);const video=box.querySelector('#barcodeVideo');const reader=new BrowserMultiFormatReader();let controls;box.querySelector('#closeScanner').onclick=()=>{if(controls)controls.stop();box.remove()};try{controls=await reader.decodeFromConstraints({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}},video,(result)=>{if(result){const code=result.getText();q('search').value=code;box.remove();if(controls)controls.stop();renderGrid();}})}catch(e){box.remove();alert('Не удалось открыть камеру. Разреши доступ к камере для этого сайта и попробуй ещё раз.')}} 
+async function scanBarcode(){
+  const {BrowserMultiFormatReader}=await import('https://cdn.jsdelivr.net/npm/@zxing/browser@0.2.1/+esm');
+
+  const box=document.createElement('div');
+  box.style='position:fixed;inset:0;background:#000;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center';
+
+  box.innerHTML=`
+    <video id="barcodeVideo" autoplay playsinline muted
+      style="width:100%;max-width:700px;height:auto"></video>
+    <div style="color:white;font-size:18px;margin:15px;text-align:center">
+      Наведите камеру на штрихкод
+    </div>
+    <button id="closeScanner"
+      style="padding:14px 30px;border:0;border-radius:12px;font-size:18px">
+      Закрыть
+    </button>
+  `;
+
+  document.body.appendChild(box);
+
+  const video=box.querySelector('#barcodeVideo');
+  const reader=new BrowserMultiFormatReader();
+  let controls=null;
+
+  box.querySelector('#closeScanner').onclick=()=>{
+    if(controls) controls.stop();
+    box.remove();
+  };
+
+  try{
+    controls=await reader.decodeFromConstraints(
+      {
+        audio:false,
+        video:{
+          facingMode:{ideal:'environment'},
+          width:{ideal:1920},
+          height:{ideal:1080},
+          focusMode:'continuous'
+        }
+      },
+      video,
+      (result)=>{
+        if(result){
+          const code=result.getText();
+
+          if(navigator.vibrate) navigator.vibrate(200);
+
+          q('search').value=code;
+
+          if(controls) controls.stop();
+          box.remove();
+
+          renderGrid();
+        }
+      }
+    );
+  }catch(e){
+    console.error(e);
+    if(controls) controls.stop();
+    box.remove();
+    alert('Не удалось распознать код. Попробуйте приблизить камеру к штрихкоду.');
+  }
+}
 function renderAll(){renderGrid();renderCart();renderStock();renderProducts();renderSales();renderAnalytics()}
 function tick(){q('clock').textContent=new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'})}
 renderAll();tick();setInterval(tick,1000);
