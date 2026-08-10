@@ -385,7 +385,7 @@ async function scanBarcode(onCode){
       Html5QrcodeSupportedFormats.CODE_39
     ];
     await scanner.start(
-      {facingMode:{ideal:'environment'}},
+      {facingMode:'environment'},
       {fps:12,qrbox:{width:320,height:160},formatsToSupport:formats,aspectRatio:1.777},
       async(decodedText)=>{
         if(done)return;
