@@ -30,7 +30,7 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:9px;bord
 <div class="app">
 <header class="head"><div><div class="logo">SASS BEAUTY</div><div class="sub">PRIVATE BEAUTY POS</div></div><div class="small" id="clock"></div></header>
 <nav class="nav" id="nav">
-<button class="on" data-view="cash">Касса</button><button data-view="stock">Склад</button><button data-view="products">Товары</button><button data-view="customers">CRM</button><button data-view="sales">Продажи</button><button data-view="analytics">Аналитика</button><button data-view="settings">Настройки</button>
+<button class="on" data-view="cash">Касса</button><button data-view="stock">Склад</button><button data-view="products">Товары</button><button data-view="cardView">📦 Карточка товара</button><button data-view="customers">CRM</button><button data-view="sales">Продажи</button><button data-view="analytics">Аналитика</button><button data-view="settings">Настройки</button>
 </nav>
 
 <section id="cash" class="view on">
@@ -49,6 +49,19 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:9px;bord
 <section id="stock" class="view"><div class="card"><h2>Склад</h2><div id="stockStats" class="stats"></div><br><div class="toolbar"><input id="stockSearch" placeholder="Поиск"><button class="primary" id="receiveBtn">Приход</button><button class="secondary" id="writeoffBtn">Списание</button></div><div class="table-wrap"><table><thead><tr><th>Раздел</th><th>Штрихкод</th><th>Товар</th><th>Цена</th><th>Остаток</th></tr></thead><tbody id="stockTable"></tbody></table></div></div></section>
 
 <section id="products" class="view"><div class="card"><h2>Товары</h2><div class="toolbar"><input id="productSearch" placeholder="Название, бренд или штрихкод"><button class="primary" id="addProduct">+ Добавить</button></div><div class="table-wrap"><table><thead><tr><th>Раздел</th><th>Штрихкод</th><th>Бренд / товар</th><th>Объём</th><th>Тип</th><th>Цена</th><th>Остаток</th><th></th></tr></thead><tbody id="productTable"></tbody></table></div></div></section>
+
+<section id="cardView" class="view">
+<div class="card">
+<h2>📦 Карточка товара</h2>
+<div class="notice">Сканируй штрихкод кнопкой ниже. Используется тот же сканер камеры, что и в кассе.</div>
+<div class="toolbar">
+<button class="primary" id="cardScanBtn">📷 Сканировать</button>
+<input id="cardBarcode" inputmode="numeric" placeholder="Или введи штрихкод">
+<button class="secondary" id="cardFindBtn">Найти</button>
+</div>
+<div id="cardResult" class="notice">Отсканируй товар — информация появится здесь.</div>
+</div>
+</section>
 
 <section id="customers" class="view"><div class="card"><h2>CRM</h2><div class="toolbar"><input id="customerSearch" placeholder="Имя или WhatsApp"><button class="primary" id="addCustomer">+ Клиент</button></div><div class="table-wrap"><table><thead><tr><th>Клиент</th><th>WhatsApp</th><th>Покупок</th><th>Сумма</th><th>Последняя покупка</th><th>Напоминание</th><th></th></tr></thead><tbody id="customerTable"></tbody></table></div></div></section>
 
@@ -84,6 +97,64 @@ q('discMoney').onclick=()=>{discount.type='money';q('disc').placeholder='₸';di
 q('disc').oninput=()=>{discount.value=Number(q('disc').value)||0;renderCart()}
 function renderCustomerSale(){q('customerSaleBox').innerHTML=`<div class="small">Клиент для CRM</div><div class="toolbar" style="margin-top:5px"><select id="saleCustomer" style="flex:1"><option value="">Без клиента</option>${db.customers.map(c=>`<option value="${c.id}" ${selectedCustomerId===c.id?'selected':''}>${esc(c.name)} · ${esc(c.phone)}</option>`).join('')}</select><button class="secondary" onclick="customerForm()">+ Клиент</button></div>`;q('saleCustomer').onchange=e=>selectedCustomerId=e.target.value?Number(e.target.value):null}
 function checkout(method){if(!cart.length)return alert('Корзина пуста');if(discount.type==='percent'&&discount.value>20){let pin=prompt('PIN владельца');if(pin!==db.pin)return alert('Неверный PIN')}let total=rawTotal(),d=discountAmount(total),final=total-d;cart.forEach(x=>{let p=db.products.find(p=>p.id===x.id);p.stock=Math.max(0,p.stock-x.qty)});let customer=db.customers.find(c=>c.id===selectedCustomerId);let sale={no:db.seq++,time:new Date().toISOString(),customerId:customer?.id||null,items:cart.map(x=>{let p=db.products.find(p=>p.id===x.id);return{id:p.id,name:p.name,qty:x.qty,price:p.price,cost:p.cost||0,useDays:p.useDays||0}}),subtotal:total,discount:d,total:final,method};db.sales.unshift(sale);if(customer){customer.lastSale=sale.time;customer.total=(customer.total||0)+final;customer.orders=(customer.orders||0)+1;let max=Math.max(...sale.items.map(i=>i.useDays||0),0);if(max)customer.nextDate=new Date(Date.now()+max*86400000).toISOString()}save();cart=[];selectedCustomerId=null;discount={type:'percent',value:0};q('disc').value='';renderAll();alert('Продажа проведена\\nЧек #'+sale.no+'\\n'+money(final)+' ₸')}
+
+function renderDedicatedCard(p){
+  if(!p){q('cardResult').innerHTML='<div class="notice">❌ Товар с таким штрихкодом не найден.</div>';return}
+  if(p.section==='china'){
+    q('cardResult').innerHTML=`<div class="photo-box">Для китайских товаров карточка товара не ведётся.</div>
+      <h3>${esc(p.name)}</h3>
+      <div class="detail-grid">
+        <div class="detail"><b>Раздел</b>🇨🇳 Китай</div>
+        <div class="detail"><b>Цена</b>${p.price?money(p.price)+' ₸':'—'}</div>
+        <div class="detail"><b>Остаток</b>${p.stock}</div>
+      </div>
+      <div class="actions"><button class="primary" onclick="addToCart(${p.id});document.querySelector('[data-view=cash]').click()">Добавить в чек</button></div>`;
+    return;
+  }
+  const image=p.photo?`<img class="product-photo" src="${esc(p.photo)}" alt="">`:
+    `<div class="photo-box">📸 Фото товара пока не добавлено</div>`;
+  q('cardResult').innerHTML=`${image}
+    <h3>${esc(p.brand||'')} — ${esc(p.name)}</h3>
+    <div class="detail-grid">
+      <div class="detail"><b>Объём</b>${esc(p.volume)||'Не указан'}</div>
+      <div class="detail"><b>Тип</b>${esc(p.category)||'Не указан'}</div>
+      <div class="detail"><b>Цена</b>${p.price?money(p.price)+' ₸':'—'}</div>
+      <div class="detail"><b>Остаток</b>${p.stock}</div>
+      <div class="detail"><b>Для какой кожи</b>${esc(p.skin)||'Уточняется'}</div>
+      <div class="detail"><b>Активные вещества</b>${esc(p.actives)||'Уточняется'}</div>
+      <div class="detail"><b>Главный эффект</b>${esc(p.benefit)||'Уточняется'}</div>
+      <div class="detail"><b>Уникальность</b>${esc(p.unique)||'Уточняется'}</div>
+    </div>
+    <div class="notice" style="margin-top:10px"><b>Как применять:</b><br>${esc(p.howTo)||'Уточняется'}</div>
+    <div class="actions"><button class="primary" onclick="addToCart(${p.id});document.querySelector('[data-view=cash]').click()">Добавить в чек</button></div>`;
+}
+function findDedicatedCard(){
+  const code=q('cardBarcode').value.trim();
+  const p=db.products.find(x=>String(x.barcode||'')===code);
+  renderDedicatedCard(p);
+}
+function showReceipt(s){
+  const c=db.customers.find(x=>x.id===s.customerId);
+  const rows=s.items.map(i=>`<div class="item"><span>${esc(i.name)} × ${i.qty}</span><b>${money(i.price*i.qty)} ₸</b></div>`).join('');
+  modal('🧾 Чек №'+s.no,`
+    <div class="notice"><b>SASS BEAUTY</b><br>${new Date(s.time).toLocaleString('ru-RU')}<br>Способ оплаты: ${esc(s.method)}</div>
+    ${c?`<div class="notice">Покупатель: <b>${esc(c.name)}</b><br>WhatsApp: ${esc(c.phone)}</div>`:'<div class="notice">Покупатель не указан.</div>'}
+    ${rows}
+    <div class="sum">Итого: ${money(s.total)} ₸</div>
+    <div class="actions">
+      <button class="primary" onclick="sendReceiptWhatsApp(${s.no})">📲 Отправить чек</button>
+      <button class="secondary" onclick="closeModal()">Закрыть</button>
+    </div>
+    <div class="small" style="margin-top:10px">Это электронный чек POS. Официальный фискальный чек требует подключения ККМ/ОФД.</div>`);
+}
+function sendReceiptWhatsApp(no){
+  const s=db.sales.find(x=>x.no===no), c=s&&db.customers.find(x=>x.id===s.customerId);
+  if(!s||!c||!c.phone)return alert('У продажи нет номера WhatsApp покупателя.');
+  const phone=String(c.phone).replace(/\D/g,'');
+  const lines=s.items.map(i=>`${i.name} × ${i.qty} — ${money(i.price*i.qty)} ₸`).join('\n');
+  const text=`SASS BEAUTY 🧾\nЧек №${s.no}\nДата: ${new Date(s.time).toLocaleString('ru-RU')}\n\n${lines}\n\nИтого: ${money(s.total)} ₸`;
+  window.open('https://wa.me/'+phone+'?text='+encodeURIComponent(text),'_blank');
+}
 function productCard(p){if(p.section==='china')return;let image=p.photo?`<img class="product-photo" src="${esc(p.photo)}">`:'<div class="photo-box">Фото товара пока не загружено<br><span class="small">Его можно добавить в редактировании карточки.</span></div>';modal('Карточка товара',`${image}<h3>${esc(p.brand)} — ${esc(p.name)}</h3><div class="detail-grid"><div class="detail"><b>Объём</b>${esc(p.volume)||'Не указан'}</div><div class="detail"><b>Тип</b>${esc(p.category)||'Не указан'}</div><div class="detail"><b>Кожа</b>${esc(p.skin)||'Уточняется'}</div><div class="detail"><b>Активы</b>${esc(p.actives)||'Уточняется'}</div><div class="detail"><b>Главный эффект</b>${esc(p.benefit)||'Уточняется'}</div><div class="detail"><b>Уникальность</b>${esc(p.unique)||'Уточняется'}</div></div><div class="notice" style="margin-top:10px"><b>Как применять:</b><br>${esc(p.howTo)||'Использовать по этапу ухода, указанному в типе продукта.'}</div><div class="actions"><button class="primary" onclick="addToCart(${p.id});closeModal()">Добавить в чек</button><button class="secondary" onclick="closeModal()">Закрыть</button></div>`)}
 function modal(title,html){q('modalTitle').textContent=title;q('modalBody').innerHTML=html;q('modal').classList.add('on')}function closeModal(){q('modal').classList.remove('on')}q('modal').onclick=e=>{if(e.target===q('modal'))closeModal()}
 
@@ -118,7 +189,7 @@ q('receiveBtn').onclick=()=>stockMove(1);q('writeoffBtn').onclick=()=>stockMove(
 function exportCSV(){let rows=[['Чек','Время','Клиент','Товары','Сумма','Оплата'],...db.sales.map(s=>{let c=db.customers.find(c=>c.id===s.customerId);return[s.no,new Date(s.time).toLocaleString('ru-RU'),c?.name||'',s.items.map(i=>i.name+' x'+i.qty).join(' | '),s.total,s.method]})];let csv=rows.map(r=>r.map(x=>`"${String(x).replaceAll('"','""')}"`).join(';')).join('\n');let a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv'}));a.download='sass-beauty-sales.csv';a.click()}q('exportBtn').onclick=exportCSV;
 
 async function scanBarcode(onCode){if(activeScanner)return;if(!window.Html5Qrcode)return alert('Сканер не загрузился. Проверь интернет.');const overlay=document.createElement('div');overlay.className='scanner-overlay';overlay.innerHTML=`<div class="scanner-box"><div id="scannerReader"></div></div><div class="scanner-title">Наведи камеру на штрихкод</div><div class="scanner-hint">Держи код внутри рамки. Цифры распознаются автоматически.</div><div class="scan-target"></div><button class="scanner-close" id="scannerClose">Закрыть</button>`;document.body.appendChild(overlay);activeScanner={overlay,scanner:null};const close=async()=>{if(!activeScanner)return;try{if(activeScanner.scanner)await activeScanner.scanner.stop()}catch(e){}try{if(activeScanner.scanner)activeScanner.scanner.clear()}catch(e){}activeScanner=null;overlay.remove()};overlay.querySelector('#scannerClose').onclick=close;const scanner=new Html5Qrcode('scannerReader');activeScanner.scanner=scanner;let done=false;try{const formats=[Html5QrcodeSupportedFormats.EAN_13,Html5QrcodeSupportedFormats.EAN_8,Html5QrcodeSupportedFormats.UPC_A,Html5QrcodeSupportedFormats.UPC_E,Html5QrcodeSupportedFormats.CODE_128,Html5QrcodeSupportedFormats.CODE_39];await scanner.start({facingMode:'environment'},{fps:12,qrbox:{width:320,height:160},formatsToSupport:formats,aspectRatio:1.777},async(decoded)=>{if(done)return;done=true;if(navigator.vibrate)navigator.vibrate(120);await close();onCode(String(decoded).trim())},()=>{})}catch(e){console.error(e);await close();alert('Не удалось запустить камеру. Разреши доступ к камере для сайта и попробуй снова.')}}
-q('scanBtn').onclick=()=>scanBarcode(addByBarcode);
+q('scanBtn').onclick=()=>scanBarcode(addByBarcode);q('cardScanBtn').onclick=()=>scanBarcode(code=>{q('cardBarcode').value=code;renderDedicatedCard(db.products.find(p=>String(p.barcode||'')===code))});q('cardFindBtn').onclick=findDedicatedCard;q('cardBarcode').onkeydown=e=>{if(e.key==='Enter')findDedicatedCard()};
 
 document.querySelectorAll('.section-tabs button').forEach(b=>b.onclick=()=>{activeSection=b.dataset.section;document.querySelectorAll('.section-tabs button').forEach(x=>x.classList.toggle('on',x===b));renderGrid()});
 document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('on'));b.classList.add('on');document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));q(b.dataset.view).classList.add('on');renderAll()});
